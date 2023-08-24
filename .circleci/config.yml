@@ -34,23 +34,13 @@ jobs:
       - <<: *install_and_start_kurtosis
 
       - run:
-          name: Run the ./scripts/run.sh in each subdirectory
-          no_output_timeout: 30m
-          command: |
-            set -euo pipefail
-            skip_dirs=(".circleci/ .github/ data-package/")
-            for directory in */ ; do
-              if git --no-pager diff --exit-code origin/main...HEAD -- ':.circleci' ":${directory%/}"; then
-                continue
-              fi            
-              if ! echo "$skip_dirs" | grep -q "$directory"; then
-                "./${directory}scripts/run.sh"
-                kurtosis clean -a
-              fi
-            done
+          go test -v ./
 
 
 workflows:
   run_test:
     jobs:
       - run_test:
+          filters:
+            branches:
+              ignore:
