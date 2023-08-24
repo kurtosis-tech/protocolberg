@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	enclaveNamePrefix  = "finalization-test"
-	eth2Package        = "github.com/kurtosis-tech/eth2-package"
+	enclaveNamePrefix = "finalization-test"
+	// faster seconds per slot on this branch in boost & package
+	eth2Package        = "github.com/kurtosis-tech/eth2-package@gyani/protocolberg"
 	inputFile          = "./input_args.json"
 	defaultParallelism = 4
 	isNotDryRun        = false
@@ -32,8 +33,8 @@ const (
 
 	beaconServiceHttpPortId   = "http"
 	finalizationRetryInterval = time.Second * 10
-	// 3 seconds per slot, 160 slots, some buffer
-	timeoutForFinalization = 3 * 180 * time.Second
+	// 3 seconds per slot, 32(buffer 34) slots per epoch, 5th epoch, some buffer
+	timeoutForFinalization = 3 * 34 * 5 * time.Second
 )
 
 var noExperimentalFeatureFlags = []kurtosis_core_rpc_api_bindings.KurtosisFeatureFlag{}
