@@ -72,12 +72,19 @@ func TestEth2Package_DenebCapellaFinalization(t *testing.T) {
 	//defer kurtosisCtx.DestroyEnclave(ctx, enclaveName)
 
 	// execute package
-	logrus.Info("Executing the Starlark Package")
+	logrus.Info("Executing the Starlark Package, this will wait for 1 epoch as MEV is turned on")
 	packageRunResult, err := enclaveCtx.RunStarlarkRemotePackageBlocking(ctx, eth2Package, pathToMainFile, runFunctionName, inputParametersAsJSONString, isNotDryRun, defaultParallelism, noExperimentalFeatureFlags)
 	require.NoError(t, err, "An unexpected error occurred while executing the package")
 	require.Nil(t, packageRunResult.InterpretationError)
 	require.Empty(t, packageRunResult.ValidationErrors)
 	require.Nil(t, packageRunResult.ExecutionError)
+
+	mevRelayWebsiteCtx, err := enclaveCtx.GetServiceContext("mev-relay-website")
+	require.NoError(t, err)
+	mevRelayWebsiteHttpPort, found := mevRelayWebsiteCtx.GetPublicPorts()["http"]
+	require.True(t, found)
+	mevRelayWebsiteUrl := fmt.Sprintf("http://0.0.0.0:%d", mevRelayWebsiteHttpPort)
+	logrus.Info("Check out the MEV relay website at '%v'", mevRelayWebsiteUrl)
 
 	var beaconNodes []*services.ServiceContext
 	enclaveServices, err := enclaveCtx.GetServices()
