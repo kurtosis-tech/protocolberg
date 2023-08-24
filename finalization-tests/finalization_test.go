@@ -147,7 +147,7 @@ func TestEth2Package_DenebCapellaFinalization(t *testing.T) {
 
 	// assert that all CL nodes are synced
 	elClientSyncWaitGroup := sync.WaitGroup{}
-	for _, elNodeServiceCtx := range beaconNodes {
+	for _, elNodeServiceCtx := range elNodes {
 		elClientSyncWaitGroup.Add(1)
 		go func(elNodeServiceCtx *services.ServiceContext) {
 			for {
