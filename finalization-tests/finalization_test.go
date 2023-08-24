@@ -84,8 +84,8 @@ func TestEth2Package_DenebCapellaFinalization(t *testing.T) {
 	require.Nil(t, err)
 	for serviceName := range enclaveServices {
 		serviceNameStr := string(serviceName)
-		if strings.HasPrefix(serviceNameStr, "cl-") && !strings.HasSuffix(serviceNameStr, "-validator") {
-			logrus.Info("Found beacon node with name '%v'", serviceNameStr)
+		if strings.HasPrefix(serviceNameStr, "cl-") && !strings.HasSuffix(serviceNameStr, "-validator") && !strings.HasSuffix(serviceNameStr, "-forkmon") {
+			logrus.Infof("Found beacon node with name '%s'", serviceNameStr)
 			beaconService, err := enclaveCtx.GetServiceContext(serviceNameStr)
 			require.NoError(t, err)
 			beaconNodes = append(beaconNodes, beaconService)
@@ -94,24 +94,25 @@ func TestEth2Package_DenebCapellaFinalization(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	for _, beaconNodeServiceCtx := range beaconNodes {
+		wg.Add(1)
 		go func(beaconNodeServiceCtx *services.ServiceContext) {
 			for {
-				wg.Add(1)
-				privatePorts := beaconNodeServiceCtx.GetPrivatePorts()
+				privatePorts := beaconNodeServiceCtx.GetPublicPorts()
 				httpPort, found := privatePorts[beaconServiceHttpPortId]
 				require.True(t, found)
 				epochsFinalized := getFinalization(t, httpPort.GetNumber())
 				logrus.Infof("Queried service '%s' got finalized epoch '%d'", beaconNodeServiceCtx.GetServiceName(), epochsFinalized)
 				if epochsFinalized > 0 {
 					wg.Done()
+				} else {
+					logrus.Infof("Retrying querying service '%s' for '%v' seconds", beaconNodeServiceCtx.GetServiceName(), finalizationRetryInterval.Seconds())
 				}
-				logrus.Infof("Pausing querying service '%s' for '%d' seconds", beaconNodeServiceCtx.GetServiceName(), finalizationRetryInterval)
 				time.Sleep(finalizationRetryInterval)
 			}
 		}(beaconNodeServiceCtx)
 	}
 
-	didWaitTimeout := waitTimeout(wg, timeoutForFinalization)
+	didWaitTimeout := waitTimeout(&wg, timeoutForFinalization)
 	require.False(t, didWaitTimeout)
 }
 
