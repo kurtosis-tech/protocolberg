@@ -151,7 +151,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	didWaitTimeout = waitTimeout(&clClientSyncWaitGroup, timeoutForSync)
 	require.False(t, didWaitTimeout, "CL nodes weren't fully synced in the expected amount of time '%v'", timeoutForSync.Seconds())
 
-	// assert that all CL nodes are synced
+	// assert that all EL nodes are synced
 	elClientSyncWaitGroup := sync.WaitGroup{}
 	for _, elNodeServiceCtx := range elNodes {
 		elClientSyncWaitGroup.Add(1)

@@ -1,0 +1,46 @@
+##############
+# Yaml Anchors
+##############
+# Install Kurtosis CLI
+install_and_start_kurtosis: &install_and_start_kurtosis
+  run: |
+    echo "deb [trusted=yes] https://apt.fury.io/kurtosis-tech/ /" | sudo tee /etc/apt/sources.list.d/kurtosis.list
+    sudo apt update
+    sudo apt install kurtosis-cli=0.81.9
+    kurtosis config init dont-send-metrics
+    kurtosis cluster set docker
+    kurtosis engine start
+
+##############
+# CircleCI
+##############
+version: 2.1
+
+orbs:
+  slack: circleci/slack@4.10.1
+
+executors:
+  ubuntu_vm:
+    machine:
+      image: ubuntu-2004:2023.04.2
+
+jobs:
+  run_test:
+    # strictly speaking we don't "need" this(large) but we are continuously adding new examples
+    resource_class: large
+    executor: ubuntu_vm
+    steps:
+      - checkout
+      - <<: *install_and_start_kurtosis
+
+      - run:
+          go test -v ./
+
+
+workflows:
+  run_test:
+    jobs:
+      - run_test:
+          filters:
+            branches:
+              ignore:
