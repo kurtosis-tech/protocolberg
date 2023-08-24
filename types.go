@@ -1,4 +1,4 @@
-package finalization_tests
+package protocolberg
 
 // for unmarshalling finalization data
 type finalization struct {

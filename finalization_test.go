@@ -1,4 +1,4 @@
-package finalization_tests
+package protocolberg
 
 import (
 	"context"
@@ -43,7 +43,7 @@ const (
 
 var noExperimentalFeatureFlags = []kurtosis_core_rpc_api_bindings.KurtosisFeatureFlag{}
 
-func TestEth2Package_DenebCapellaFinalization(t *testing.T) {
+func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	// set up the input parameters
 	logrus.Info("Parsing Input Parameters")
 	inputParameters, err := os.ReadFile(inputFile)
@@ -66,6 +66,7 @@ func TestEth2Package_DenebCapellaFinalization(t *testing.T) {
 
 	// execute package
 	logrus.Info("Executing the Starlark Package, this will wait for 1 epoch as MEV is turned on")
+	logrus.Infof("Using Enclave '%v' - use `kurtosis enclave inspect %v` to see whats inside", enclaveName, enclaveName)
 	packageRunResult, err := enclaveCtx.RunStarlarkRemotePackageBlocking(ctx, eth2Package, pathToMainFile, runFunctionName, inputParametersAsJSONString, isNotDryRun, defaultParallelism, noExperimentalFeatureFlags)
 	require.NoError(t, err, "An unexpected error occurred while executing the package")
 	require.Nil(t, packageRunResult.InterpretationError)

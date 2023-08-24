@@ -1,4 +1,4 @@
-module github.com/kurtosis-tech/protocolberg/finalization-tests
+module github.com/kurtosis-tech/protocolberg
 
 go 1.19
 
