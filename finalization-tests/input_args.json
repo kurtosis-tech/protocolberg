@@ -2,12 +2,12 @@
   "participants": [
     {
       "el_client_type": "geth",
-      "cl_client_type": "lighthouse"
+      "cl_client_type": "lighthouse",
+      "count": 1
     }
   ],
   "network_params": {
     "capella_fork_epoch": "1",
-    "deneb_fork_epoch": "3",
     "seconds_per_slot": "3"
   }
 }
