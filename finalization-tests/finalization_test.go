@@ -113,7 +113,7 @@ func TestEth2Package_DenebCapellaFinalization(t *testing.T) {
 	}
 
 	didWaitTimeout := waitTimeout(&wg, timeoutForFinalization)
-	require.False(t, didWaitTimeout)
+	require.False(t, didWaitTimeout, "Finalization didn't happen within expected duration of '%v' seconds", timeoutForFinalization.Seconds())
 }
 
 // extract this as a function that returns finalized epoch
