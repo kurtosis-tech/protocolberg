@@ -81,10 +81,10 @@ func TestEth2Package_DenebCapellaFinalization(t *testing.T) {
 
 	mevRelayWebsiteCtx, err := enclaveCtx.GetServiceContext("mev-relay-website")
 	require.NoError(t, err)
-	mevRelayWebsiteHttpPort, found := mevRelayWebsiteCtx.GetPublicPorts()["http"]
+	mevRelayWebsiteHttpPort, found := mevRelayWebsiteCtx.GetPublicPorts()["api"]
 	require.True(t, found)
-	mevRelayWebsiteUrl := fmt.Sprintf("http://0.0.0.0:%d", mevRelayWebsiteHttpPort)
-	logrus.Info("Check out the MEV relay website at '%v'", mevRelayWebsiteUrl)
+	mevRelayWebsiteUrl := fmt.Sprintf("http://0.0.0.0:%d", mevRelayWebsiteHttpPort.GetNumber())
+	logrus.Infof("Check out the MEV relay website at '%s'", mevRelayWebsiteUrl)
 
 	var beaconNodes []*services.ServiceContext
 	enclaveServices, err := enclaveCtx.GetServices()
