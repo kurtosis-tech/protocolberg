@@ -188,7 +188,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	require.Equal(t, uint64(256), numRegisteredValidators)
 	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
 	require.Nil(t, err)
-	require.GreaterOrEqual(t, numDeliveredPayloads, 0)
+	require.GreaterOrEqual(t, numDeliveredPayloads, uint64(0))
 }
 
 // extract this as a function that returns finalized epoch
