@@ -5,7 +5,7 @@
       "cl_client_type": "lighthouse"
     },
     {
-      "el_client_type": "erigon",
+      "el_client_type": "reth",
       "cl_client_type": "prysm"
     },
     {
@@ -16,5 +16,6 @@
   "network_params": {
     "capella_fork_epoch": 1,
     "seconds_per_slot": 3
-  }
+  },
+  "mev_type": "full"
 }
