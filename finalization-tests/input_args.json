@@ -5,12 +5,12 @@
       "cl_client_type": "lighthouse"
     },
     {
-      "el_client_type": "reth",
-      "cl_client_type": "prysm"
-    },
-    {
       "el_client_type": "nethermind",
       "cl_client_type": "teku"
+    },
+    {
+      "el_client_type": "reth",
+      "cl_client_type": "prysm"
     }
   ],
   "network_params": {
