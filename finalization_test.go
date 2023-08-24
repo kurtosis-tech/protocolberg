@@ -115,12 +115,13 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 				epochsFinalized := getFinalization(t, httpPort.GetNumber())
 				logrus.Infof("Queried service '%s' got finalized epoch '%d'", beaconNodeServiceCtx.GetServiceName(), epochsFinalized)
 				if epochsFinalized > 0 {
-					wg.Done()
+					break
 				} else {
 					logrus.Infof("Pausing querying service '%s' for '%v' seconds", beaconNodeServiceCtx.GetServiceName(), finalizationRetryInterval.Seconds())
 				}
 				time.Sleep(finalizationRetryInterval)
 			}
+			wg.Done()
 		}(beaconNodeServiceCtx)
 	}
 	didWaitTimeout := waitTimeout(&wg, timeoutForFinalization)
@@ -138,12 +139,13 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 				isSyncing := getCLSyncing(t, httpPort.GetNumber())
 				logrus.Infof("Node '%s' is fully synced", beaconNodeServiceCtx.GetServiceName())
 				if !isSyncing {
-					clClientSyncWaitGroup.Done()
+					break
 				} else {
 					logrus.Infof("Pausing querying service '%s' for '%v' seconds", beaconNodeServiceCtx.GetServiceName(), syncInterval.Seconds())
 				}
 				time.Sleep(syncInterval)
 			}
+			clClientSyncWaitGroup.Done()
 		}(beaconNodeServiceCtx)
 	}
 	didWaitTimeout = waitTimeout(&clClientSyncWaitGroup, timeoutForSync)
@@ -161,12 +163,13 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 				isSyncing := getELSyncing(t, rpcPort.GetNumber())
 				logrus.Infof("Node '%s' is fully synced", elNodeServiceCtx.GetServiceName())
 				if !isSyncing {
-					elClientSyncWaitGroup.Done()
+					break
 				} else {
 					logrus.Infof("Pausing querying service '%s' for '%v' seconds", elNodeServiceCtx.GetServiceName(), syncInterval.Seconds())
 				}
 				time.Sleep(syncInterval)
 			}
+			elClientSyncWaitGroup.Done()
 		}(elNodeServiceCtx)
 	}
 	didWaitTimeout = waitTimeout(&elClientSyncWaitGroup, timeoutForSync)
@@ -174,6 +177,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 
 	logrus.Info("Finalization has been reached and all nodes are fully synced")
 
+	// as finalization happens around  the 160th slot, some payloads should have been already delivered
 	logrus.Infof("Check out the MEV relay website at '%s'; payloads should get delivered around 128 slots", mevRelayWebsiteUrl)
 	logrus.Info("Checking registered validators & payloads delivered on MEV")
 	postgresService, err := enclaveCtx.GetServiceContext("postgres")
