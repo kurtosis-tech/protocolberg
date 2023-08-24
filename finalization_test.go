@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/flashbots/mev-boost-relay/database"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
@@ -39,6 +40,8 @@ const (
 	timeoutForFinalization = 3 * 34 * 5 * time.Second
 	timeoutForSync         = 30 * time.Second
 	syncInterval           = 2 * time.Second
+
+	postgresDsn = "postgres://postgres:postgres@0.0.0.0:%d/postgres?sslmode=disable"
 )
 
 var noExperimentalFeatureFlags = []kurtosis_core_rpc_api_bindings.KurtosisFeatureFlag{}
@@ -169,8 +172,23 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	didWaitTimeout = waitTimeout(&elClientSyncWaitGroup, timeoutForSync)
 	require.False(t, didWaitTimeout, "EL nodes weren't fully synced in the expected amount of time '%v'", timeoutForSync.Seconds())
 
-	logrus.Info("finalization has been reached and all nodes are fully synced")
+	logrus.Info("Finalization has been reached and all nodes are fully synced")
+
 	logrus.Infof("Check out the MEV relay website at '%s'; payloads should get delivered around 128 slots", mevRelayWebsiteUrl)
+	logrus.Info("Checking registered validators & payloads delivered on MEV")
+	postgresService, err := enclaveCtx.GetServiceContext("postgres")
+	require.Nil(t, err)
+	postgresPort, found := postgresService.GetPublicPorts()["postgresql"]
+	require.True(t, found)
+	dsn := fmt.Sprintf(postgresDsn, postgresPort.GetNumber())
+	dbService, err := database.NewDatabaseService(dsn)
+	require.Nil(t, err)
+	numRegisteredValidators, err := dbService.NumRegisteredValidators()
+	require.Nil(t, err)
+	require.Equal(t, uint64(256), numRegisteredValidators)
+	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
+	require.Nil(t, err)
+	require.GreaterOrEqual(t, numDeliveredPayloads, 0)
 }
 
 // extract this as a function that returns finalized epoch
