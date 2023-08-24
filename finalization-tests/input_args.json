@@ -1,0 +1,13 @@
+{
+  "participants": [
+    {
+      "el_client_type": "geth",
+      "cl_client_type": "lighthouse"
+    }
+  ],
+  "network_params": {
+    "capella_fork_epoch": "1",
+    "deneb_fork_epoch": "3",
+    "seconds_per_slot": "3"
+  }
+}
