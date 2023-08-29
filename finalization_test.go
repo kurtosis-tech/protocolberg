@@ -65,7 +65,12 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	enclaveName := fmt.Sprintf("%s-%d", enclaveNamePrefix, time.Now().Unix())
 	enclaveCtx, err := kurtosisCtx.CreateEnclave(ctx, enclaveName)
 	require.Nil(t, err, "An unexpected error occurred while creating Enclave Context")
-	//defer kurtosisCtx.DestroyEnclave(ctx, enclaveName)
+	cleanupEnclavesAsTestsEndedSuccessfully := false
+	defer func() {
+		if cleanupEnclavesAsTestsEndedSuccessfully {
+			kurtosisCtx.DestroyEnclave(ctx, enclaveName)
+		}
+	}()
 
 	// execute package
 	logrus.Info("Executing the Starlark Package, this will wait for 1 epoch as MEV is turned on")
@@ -193,6 +198,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
 	require.Nil(t, err)
 	require.GreaterOrEqual(t, numDeliveredPayloads, uint64(0))
+	cleanupEnclavesAsTestsEndedSuccessfully = true
 }
 
 // extract this as a function that returns finalized epoch
