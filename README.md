@@ -8,7 +8,7 @@ Built using the [eth2-package](https://github.com/kurtosis-tech/eth2-package) an
 
 # Run Instructions
 
-1. Have Kurtosis installed 0.81.9
+1. Have Kurtosis installed 0.82.11
 2. Have Docker Installed
 3. Have a running Kurtosis engine `kurtosis engine restart`
 4. `go test -v ./` or press play on your favorite IDE

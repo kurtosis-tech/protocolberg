@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/flashbots/mev-boost-relay v0.27.0
-	github.com/kurtosis-tech/kurtosis/api/golang v0.81.9
+	github.com/kurtosis-tech/kurtosis/api/golang v0.82.11
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 )
@@ -49,12 +49,12 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/holiman/uint256 v1.2.2 // indirect
 	github.com/jmoiron/sqlx v1.3.5 // indirect
-	github.com/klauspost/compress v1.15.15 // indirect
+	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/kurtosis-tech/kurtosis-portal/api/golang v0.0.0-20230712110324-ce92904bb514 // indirect
+	github.com/kurtosis-tech/kurtosis-portal/api/golang v0.0.0-20230818182330-1a86869414d2 // indirect
 	github.com/kurtosis-tech/kurtosis/contexts-config-store v0.0.0-20230824103533-a2c0dcc0bc38 // indirect
 	github.com/kurtosis-tech/kurtosis/grpc-file-transfer/golang v0.0.0-20230803130419-099ee7a4e3dc // indirect
 	github.com/kurtosis-tech/stacktrace v0.0.0-20211028211901-1c67a77b5409 // indirect
@@ -71,7 +71,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/onsi/gomega v1.21.1 // indirect
-	github.com/pierrec/lz4/v4 v4.1.2 // indirect
+	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.14.0 // indirect
@@ -88,11 +88,11 @@ require (
 	github.com/tklauser/numcpus v0.2.2 // indirect
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
-	golang.org/x/crypto v0.11.0 // indirect
+	golang.org/x/crypto v0.12.0 // indirect
 	golang.org/x/exp v0.0.0-20230206171751-46f607a40771 // indirect
-	golang.org/x/net v0.12.0 // indirect
-	golang.org/x/sys v0.10.0 // indirect
-	golang.org/x/text v0.11.0 // indirect
+	golang.org/x/net v0.14.0 // indirect
+	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/text v0.12.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98 // indirect
