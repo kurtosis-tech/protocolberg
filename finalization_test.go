@@ -4,12 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/flashbots/mev-boost-relay/database"
-	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
-	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
-	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"os"
 	"strconv"
@@ -17,12 +11,18 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/flashbots/mev-boost-relay/database"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
+	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
 const (
-	enclaveNamePrefix = "finalization-test"
-	// faster seconds per slot on this branch in boost & package
-	eth2Package        = "github.com/kurtosis-tech/eth2-package@gyani/protocolberg"
+	enclaveNamePrefix  = "finalization-test"
+	eth2Package        = "github.com/kurtosis-tech/eth2-package"
 	inputFile          = "./input_args.json"
 	defaultParallelism = 4
 	isNotDryRun        = false
