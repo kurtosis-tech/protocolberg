@@ -4,12 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/flashbots/mev-boost-relay/database"
-	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
-	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
-	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"os"
 	"strconv"
@@ -17,12 +11,18 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/flashbots/mev-boost-relay/database"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
+	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
 const (
-	enclaveNamePrefix = "finalization-test"
-	// faster seconds per slot on this branch in boost & package
-	eth2Package        = "github.com/kurtosis-tech/eth2-package@gyani/protocolberg"
+	enclaveNamePrefix  = "finalization-test"
+	eth2Package        = "github.com/kurtosis-tech/eth2-package"
 	inputFile          = "./input_args.json"
 	defaultParallelism = 4
 	isNotDryRun        = false
@@ -65,7 +65,12 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	enclaveName := fmt.Sprintf("%s-%d", enclaveNamePrefix, time.Now().Unix())
 	enclaveCtx, err := kurtosisCtx.CreateEnclave(ctx, enclaveName)
 	require.Nil(t, err, "An unexpected error occurred while creating Enclave Context")
-	//defer kurtosisCtx.DestroyEnclave(ctx, enclaveName)
+	cleanupEnclavesAsTestsEndedSuccessfully := false
+	defer func() {
+		if cleanupEnclavesAsTestsEndedSuccessfully {
+			kurtosisCtx.DestroyEnclave(ctx, enclaveName)
+		}
+	}()
 
 	// execute package
 	logrus.Info("Executing the Starlark Package, this will wait for 1 epoch as MEV is turned on")
@@ -193,6 +198,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
 	require.Nil(t, err)
 	require.GreaterOrEqual(t, numDeliveredPayloads, uint64(0))
+	cleanupEnclavesAsTestsEndedSuccessfully = true
 }
 
 // extract this as a function that returns finalized epoch
