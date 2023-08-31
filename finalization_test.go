@@ -197,7 +197,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	require.Equal(t, uint64(256), numRegisteredValidators)
 	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
 	require.Nil(t, err)
-	require.GreaterOrEqual(t, numDeliveredPayloads, uint64(0))
+	require.GreaterOrEqual(t, numDeliveredPayloads, uint64(1))
 	cleanupEnclavesAsTestsEndedSuccessfully = true
 }
 
