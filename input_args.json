@@ -19,6 +19,7 @@
   },
   "mev_type": "full",
   "mev_params": {
-    "mev_flood_seconds_per_bundle": 7
+    "mev_flood_seconds_per_bundle": 7,
+    "launch_custom_flood": true
   }
 }
