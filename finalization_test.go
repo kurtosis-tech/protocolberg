@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/flashbots/mev-boost-relay/database"
 	"net/http"
 	"os"
 	"strconv"
@@ -12,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/flashbots/mev-boost-relay/database"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
@@ -45,6 +45,7 @@ const (
 	timeoutForFinalization = secondsPerSlot*slotsPerEpoch*finalizationEpoch*time.Second + bufferForFinalization*time.Second
 	timeoutForSync         = 30 * time.Second
 	syncRetryInterval      = 2 * time.Second
+	retryMessage           = "Pausing querying service '%s' for '%v' seconds"
 
 	mevRelayWebsiteServiceName = "mev-relay-website"
 	postgresSqlServiceName     = "postgres"
@@ -144,32 +145,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	cleanupEnclavesAsTestsEndedSuccessfully = true
 }
 
-func checkFinalizationHasHappened(t *testing.T, beaconNodeServiceContexts []*services.ServiceContext) {
-	// assert that finalization happens on all CL nodes
-	wg := sync.WaitGroup{}
-	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
-		wg.Add(1)
-		go func(beaconNodeServiceCtx *services.ServiceContext) {
-			for {
-				publicPorts := beaconNodeServiceCtx.GetPublicPorts()
-				httpPort, found := publicPorts[beaconServiceHttpPortId]
-				require.True(t, found)
-				epochsFinalized := getFinalizedEpoch(t, httpPort.GetNumber())
-				logrus.Infof("Queried service '%s' got finalized epoch '%d'", beaconNodeServiceCtx.GetServiceName(), epochsFinalized)
-				if epochsFinalized > 0 {
-					break
-				} else {
-					logrus.Infof("Pausing querying service '%s' for '%v' seconds", beaconNodeServiceCtx.GetServiceName(), finalizationRetryInterval.Seconds())
-				}
-				time.Sleep(finalizationRetryInterval)
-			}
-			wg.Done()
-		}(beaconNodeServiceCtx)
-	}
-	didWaitTimeout := didWaitGroupTimeout(&wg, timeoutForFinalization)
-	require.False(t, didWaitTimeout, "Finalization didn't happen within expected duration of '%v' seconds", timeoutForFinalization.Seconds())
-}
-
+// verifyPayloadsHaveBeenDelivered talks to the postgres database to assert that the number of validators are as expected & at least one payload has been delivered
 func verifyPayloadsHaveBeenDelivered(t *testing.T, mevPostgresServiceCtx *services.ServiceContext) {
 	postgresPort, found := mevPostgresServiceCtx.GetPublicPorts()[postgresSqlPortId]
 	require.True(t, found)
@@ -184,6 +160,33 @@ func verifyPayloadsHaveBeenDelivered(t *testing.T, mevPostgresServiceCtx *servic
 	require.GreaterOrEqual(t, numDeliveredPayloads, minimumExpectedDeliveredPayloads, "expected at least one payload to be delivered")
 }
 
+// checkFinalizationHasHappened queries beacon nodes to make sure the finalized epoch is greater than 0
+func checkFinalizationHasHappened(t *testing.T, beaconNodeServiceContexts []*services.ServiceContext) {
+	// assert that finalization happens on all CL nodes
+	wg := sync.WaitGroup{}
+	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
+		wg.Add(1)
+		go func(beaconNodeServiceCtx *services.ServiceContext) {
+			for {
+				publicPorts := beaconNodeServiceCtx.GetPublicPorts()
+				beaconHttpPort, found := publicPorts[beaconServiceHttpPortId]
+				require.True(t, found)
+				epochsFinalized := getFinalizedEpoch(t, beaconHttpPort.GetNumber())
+				logrus.Infof("Queried service '%s' got finalized epoch '%d'", beaconNodeServiceCtx.GetServiceName(), epochsFinalized)
+				if epochsFinalized > 0 {
+					break
+				} else {
+					logrus.Infof(retryMessage, beaconNodeServiceCtx.GetServiceName(), finalizationRetryInterval.Seconds())
+				}
+				time.Sleep(finalizationRetryInterval)
+			}
+			wg.Done()
+		}(beaconNodeServiceCtx)
+	}
+	didWaitTimeout := didWaitGroupTimeout(&wg, timeoutForFinalization)
+	require.False(t, didWaitTimeout, "Finalization didn't happen within expected duration of '%v' seconds", timeoutForFinalization.Seconds())
+}
+
 // checkAllCLNodesAreSynced assert that all CL nodes are synced
 func checkAllCLNodesAreSynced(t *testing.T, beaconNodeServiceContexts []*services.ServiceContext) {
 	clClientSyncWaitGroup := sync.WaitGroup{}
@@ -192,14 +195,14 @@ func checkAllCLNodesAreSynced(t *testing.T, beaconNodeServiceContexts []*service
 		go func(beaconNodeServiceCtx *services.ServiceContext) {
 			for {
 				publicPorts := beaconNodeServiceCtx.GetPublicPorts()
-				httpPort, found := publicPorts[beaconServiceHttpPortId]
+				beaconHttpPort, found := publicPorts[beaconServiceHttpPortId]
 				require.True(t, found)
-				isSyncing := isCLSyncing(t, httpPort.GetNumber())
-				logrus.Infof("Node '%s' is fully synced", beaconNodeServiceCtx.GetServiceName())
+				isSyncing := isCLSyncing(t, beaconHttpPort.GetNumber())
 				if !isSyncing {
+					logrus.Infof("Node '%s' is fully synced", beaconNodeServiceCtx.GetServiceName())
 					break
 				} else {
-					logrus.Infof("Pausing querying service '%s' for '%v' seconds", beaconNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
+					logrus.Infof(retryMessage, beaconNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
 				}
 				time.Sleep(syncRetryInterval)
 			}
@@ -221,11 +224,11 @@ func checkAllElNodesAreSynced(t *testing.T, elNodeServiceContexts []*services.Se
 				rpcPort, found := publicPorts[elServiceRpcPortId]
 				require.True(t, found)
 				isSyncing := isELSyncing(t, rpcPort.GetNumber())
-				logrus.Infof("Node '%s' is fully synced", elNodeServiceCtx.GetServiceName())
 				if !isSyncing {
+					logrus.Infof("Node '%s' is fully synced", elNodeServiceCtx.GetServiceName())
 					break
 				} else {
-					logrus.Infof("Pausing querying service '%s' for '%v' seconds", elNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
+					logrus.Infof(retryMessage, elNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
 				}
 				time.Sleep(syncRetryInterval)
 			}
