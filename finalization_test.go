@@ -41,8 +41,20 @@ const (
 	timeoutForSync         = 30 * time.Second
 	syncInterval           = 2 * time.Second
 
-	postgresDsn   = "postgres://postgres:postgres@0.0.0.0:%d/postgres?sslmode=disable"
+	mevRelayWebsiteServiceName = "mev-relay-website"
+	postgresSqlServiceName     = "postgres"
+	postgresSqlPortId          = "postgresql"
+	postgresDsn                = "postgres://postgres:postgres@0.0.0.0:%d/postgres?sslmode=disable"
+
 	httpLocalhost = "http://0.0.0.0"
+
+	clPrefix        = "cl-"
+	elPrefix        = "el-"
+	forkmonSuffix   = "-forkmon"
+	validatorSuffix = "-validator"
+
+	expectedRegisteredValidators     = uint64(256)
+	minimumExpectedDeliveredPayloads = uint64(1)
 )
 
 var noExperimentalFeatureFlags = []kurtosis_core_rpc_api_bindings.KurtosisFeatureFlag{}
@@ -82,36 +94,36 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	require.Empty(t, packageRunResult.ValidationErrors)
 	require.Nil(t, packageRunResult.ExecutionError)
 
-	mevRelayWebsiteCtx, err := enclaveCtx.GetServiceContext("mev-relay-website")
+	mevRelayWebsiteCtx, err := enclaveCtx.GetServiceContext(mevRelayWebsiteServiceName)
 	require.NoError(t, err)
 	mevRelayWebsiteHttpPort, found := mevRelayWebsiteCtx.GetPublicPorts()[websiteApiId]
 	require.True(t, found)
 	mevRelayWebsiteUrl := fmt.Sprintf("%v:%d", httpLocalhost, mevRelayWebsiteHttpPort.GetNumber())
 	logrus.Infof("Check out the MEV relay website at '%s'", mevRelayWebsiteUrl)
 
-	var beaconNodes []*services.ServiceContext
-	var elNodes []*services.ServiceContext
+	var beaconNodeServiceContexts []*services.ServiceContext
+	var elNodeServiceContexts []*services.ServiceContext
 	enclaveServices, err := enclaveCtx.GetServices()
 	require.Nil(t, err)
 	for serviceName := range enclaveServices {
 		serviceNameStr := string(serviceName)
-		if strings.HasPrefix(serviceNameStr, "cl-") && !strings.HasSuffix(serviceNameStr, "-validator") && !strings.HasSuffix(serviceNameStr, "-forkmon") {
+		if strings.HasPrefix(serviceNameStr, clPrefix) && !strings.HasSuffix(serviceNameStr, validatorSuffix) && !strings.HasSuffix(serviceNameStr, forkmonSuffix) {
 			logrus.Infof("Found beacon node with name '%s'", serviceNameStr)
 			beaconService, err := enclaveCtx.GetServiceContext(serviceNameStr)
 			require.NoError(t, err)
-			beaconNodes = append(beaconNodes, beaconService)
+			beaconNodeServiceContexts = append(beaconNodeServiceContexts, beaconService)
 		}
-		if strings.HasPrefix(serviceNameStr, "el-") && !strings.HasSuffix(serviceNameStr, "-forkmon") {
+		if strings.HasPrefix(serviceNameStr, elPrefix) && !strings.HasSuffix(serviceNameStr, forkmonSuffix) {
 			logrus.Infof("Found el node with name '%s'", serviceNameStr)
 			elService, err := enclaveCtx.GetServiceContext(serviceNameStr)
 			require.NoError(t, err)
-			elNodes = append(elNodes, elService)
+			elNodeServiceContexts = append(elNodeServiceContexts, elService)
 		}
 	}
 
 	// assert that finalization happens on all CL nodes
 	wg := sync.WaitGroup{}
-	for _, beaconNodeServiceCtx := range beaconNodes {
+	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
 		wg.Add(1)
 		go func(beaconNodeServiceCtx *services.ServiceContext) {
 			for {
@@ -135,7 +147,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 
 	// assert that all CL nodes are synced
 	clClientSyncWaitGroup := sync.WaitGroup{}
-	for _, beaconNodeServiceCtx := range beaconNodes {
+	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
 		clClientSyncWaitGroup.Add(1)
 		go func(beaconNodeServiceCtx *services.ServiceContext) {
 			for {
@@ -159,7 +171,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 
 	// assert that all EL nodes are synced
 	elClientSyncWaitGroup := sync.WaitGroup{}
-	for _, elNodeServiceCtx := range elNodes {
+	for _, elNodeServiceCtx := range elNodeServiceContexts {
 		elClientSyncWaitGroup.Add(1)
 		go func(elNodeServiceCtx *services.ServiceContext) {
 			for {
@@ -186,19 +198,19 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	// as finalization happens around  the 160th slot, some payloads should have been already delivered
 	logrus.Infof("Check out the MEV relay website at '%s'; payloads should get delivered around 128 slots", mevRelayWebsiteUrl)
 	logrus.Info("Checking registered validators & payloads delivered on MEV")
-	postgresService, err := enclaveCtx.GetServiceContext("postgres")
+	postgresService, err := enclaveCtx.GetServiceContext(postgresSqlServiceName)
 	require.Nil(t, err)
-	postgresPort, found := postgresService.GetPublicPorts()["postgresql"]
+	postgresPort, found := postgresService.GetPublicPorts()[postgresSqlPortId]
 	require.True(t, found)
 	dsn := fmt.Sprintf(postgresDsn, postgresPort.GetNumber())
 	dbService, err := database.NewDatabaseService(dsn)
 	require.Nil(t, err)
 	numRegisteredValidators, err := dbService.NumRegisteredValidators()
 	require.Nil(t, err)
-	require.Equal(t, uint64(256), numRegisteredValidators)
+	require.Equal(t, expectedRegisteredValidators, numRegisteredValidators, "unexpected number of registererd validators")
 	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
 	require.Nil(t, err)
-	require.GreaterOrEqual(t, numDeliveredPayloads, uint64(1))
+	require.GreaterOrEqual(t, numDeliveredPayloads, minimumExpectedDeliveredPayloads, "expected at least one payload to be delivered")
 	cleanupEnclavesAsTestsEndedSuccessfully = true
 }
 
