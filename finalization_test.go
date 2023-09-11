@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/flashbots/mev-boost-relay/database"
 	"net/http"
 	"os"
 	"strconv"
@@ -12,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/flashbots/mev-boost-relay/database"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
@@ -45,6 +45,9 @@ const (
 	timeoutForFinalization = secondsPerSlot*slotsPerEpoch*finalizationEpoch*time.Second + bufferForFinalization*time.Second
 	timeoutForSync         = 30 * time.Second
 	syncRetryInterval      = 2 * time.Second
+	sleepIntervalMessage   = "Pausing querying service '%s' for '%v' seconds"
+	fullySyncedMessage     = "Node '%s' is fully synced"
+	stillSyncingMessage    = "Node '%s' is still syncing"
 
 	mevRelayWebsiteServiceName = "mev-relay-website"
 	postgresSqlServiceName     = "postgres"
@@ -129,86 +132,24 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 		}
 	}
 
-	// assert that finalization happens on all CL nodes
-	wg := sync.WaitGroup{}
-	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
-		wg.Add(1)
-		go func(beaconNodeServiceCtx *services.ServiceContext) {
-			for {
-				publicPorts := beaconNodeServiceCtx.GetPublicPorts()
-				httpPort, found := publicPorts[beaconServiceHttpPortId]
-				require.True(t, found)
-				epochsFinalized := getFinalization(t, httpPort.GetNumber())
-				logrus.Infof("Queried service '%s' got finalized epoch '%d'", beaconNodeServiceCtx.GetServiceName(), epochsFinalized)
-				if epochsFinalized > 0 {
-					break
-				} else {
-					logrus.Infof("Pausing querying service '%s' for '%v' seconds", beaconNodeServiceCtx.GetServiceName(), finalizationRetryInterval.Seconds())
-				}
-				time.Sleep(finalizationRetryInterval)
-			}
-			wg.Done()
-		}(beaconNodeServiceCtx)
-	}
-	didWaitTimeout := waitTimeout(&wg, timeoutForFinalization)
-	require.False(t, didWaitTimeout, "Finalization didn't happen within expected duration of '%v' seconds", timeoutForFinalization.Seconds())
-
-	// assert that all CL nodes are synced
-	clClientSyncWaitGroup := sync.WaitGroup{}
-	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
-		clClientSyncWaitGroup.Add(1)
-		go func(beaconNodeServiceCtx *services.ServiceContext) {
-			for {
-				publicPorts := beaconNodeServiceCtx.GetPublicPorts()
-				httpPort, found := publicPorts[beaconServiceHttpPortId]
-				require.True(t, found)
-				isSyncing := getCLSyncing(t, httpPort.GetNumber())
-				logrus.Infof("Node '%s' is fully synced", beaconNodeServiceCtx.GetServiceName())
-				if !isSyncing {
-					break
-				} else {
-					logrus.Infof("Pausing querying service '%s' for '%v' seconds", beaconNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
-				}
-				time.Sleep(syncRetryInterval)
-			}
-			clClientSyncWaitGroup.Done()
-		}(beaconNodeServiceCtx)
-	}
-	didWaitTimeout = waitTimeout(&clClientSyncWaitGroup, timeoutForSync)
-	require.False(t, didWaitTimeout, "CL nodes weren't fully synced in the expected amount of time '%v'", timeoutForSync.Seconds())
-
-	// assert that all EL nodes are synced
-	elClientSyncWaitGroup := sync.WaitGroup{}
-	for _, elNodeServiceCtx := range elNodeServiceContexts {
-		elClientSyncWaitGroup.Add(1)
-		go func(elNodeServiceCtx *services.ServiceContext) {
-			for {
-				publicPorts := elNodeServiceCtx.GetPublicPorts()
-				rpcPort, found := publicPorts[elServiceRpcPortId]
-				require.True(t, found)
-				isSyncing := getELSyncing(t, rpcPort.GetNumber())
-				logrus.Infof("Node '%s' is fully synced", elNodeServiceCtx.GetServiceName())
-				if !isSyncing {
-					break
-				} else {
-					logrus.Infof("Pausing querying service '%s' for '%v' seconds", elNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
-				}
-				time.Sleep(syncRetryInterval)
-			}
-			elClientSyncWaitGroup.Done()
-		}(elNodeServiceCtx)
-	}
-	didWaitTimeout = waitTimeout(&elClientSyncWaitGroup, timeoutForSync)
-	require.False(t, didWaitTimeout, "EL nodes weren't fully synced in the expected amount of time '%v'", timeoutForSync.Seconds())
+	checkFinalizationHasHappened(t, beaconNodeServiceContexts)
+	checkAllCLNodesAreSynced(t, beaconNodeServiceContexts)
+	checkAllElNodesAreSynced(t, elNodeServiceContexts)
 
 	logrus.Info("Finalization has happened and all nodes are fully synced")
 
 	// as finalization happens around  the 160th slot, some payloads should have been already delivered
 	logrus.Infof("Check out the MEV relay website at '%s'; payloads should get delivered around 128 slots", mevRelayWebsiteUrl)
 	logrus.Info("Checking registered validators & payloads delivered on MEV")
-	postgresService, err := enclaveCtx.GetServiceContext(postgresSqlServiceName)
+	mevPostgresServiceCtx, err := enclaveCtx.GetServiceContext(postgresSqlServiceName)
 	require.Nil(t, err)
-	postgresPort, found := postgresService.GetPublicPorts()[postgresSqlPortId]
+	verifyPayloadsHaveBeenDelivered(t, mevPostgresServiceCtx)
+	cleanupEnclavesAsTestsEndedSuccessfully = true
+}
+
+// verifyPayloadsHaveBeenDelivered talks to the postgres database to assert that the number of validators are as expected & at least one payload has been delivered
+func verifyPayloadsHaveBeenDelivered(t *testing.T, mevPostgresServiceCtx *services.ServiceContext) {
+	postgresPort, found := mevPostgresServiceCtx.GetPublicPorts()[postgresSqlPortId]
 	require.True(t, found)
 	dsn := fmt.Sprintf(postgresDsn, postgresPort.GetNumber())
 	dbService, err := database.NewDatabaseService(dsn)
@@ -219,10 +160,91 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
 	require.Nil(t, err)
 	require.GreaterOrEqual(t, numDeliveredPayloads, minimumExpectedDeliveredPayloads, "expected at least one payload to be delivered")
-	cleanupEnclavesAsTestsEndedSuccessfully = true
 }
 
-func getFinalization(t *testing.T, beaconHttpPort uint16) int {
+// checkFinalizationHasHappened queries beacon nodes to make sure the finalized epoch is greater than 0
+func checkFinalizationHasHappened(t *testing.T, beaconNodeServiceContexts []*services.ServiceContext) {
+	// assert that finalization happens on all CL nodes
+	wg := sync.WaitGroup{}
+	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
+		wg.Add(1)
+		go func(beaconNodeServiceCtx *services.ServiceContext) {
+			for {
+				publicPorts := beaconNodeServiceCtx.GetPublicPorts()
+				beaconHttpPort, found := publicPorts[beaconServiceHttpPortId]
+				require.True(t, found)
+				epochsFinalized := getFinalizedEpoch(t, beaconHttpPort.GetNumber())
+				logrus.Infof("Queried service '%s' got finalized epoch '%d'", beaconNodeServiceCtx.GetServiceName(), epochsFinalized)
+				if epochsFinalized > 0 {
+					break
+				} else {
+					logrus.Infof(sleepIntervalMessage, beaconNodeServiceCtx.GetServiceName(), finalizationRetryInterval.Seconds())
+				}
+				time.Sleep(finalizationRetryInterval)
+			}
+			wg.Done()
+		}(beaconNodeServiceCtx)
+	}
+	didWaitTimeout := didWaitGroupTimeout(&wg, timeoutForFinalization)
+	require.False(t, didWaitTimeout, "Finalization didn't happen within expected duration of '%v' seconds", timeoutForFinalization.Seconds())
+}
+
+// checkAllCLNodesAreSynced assert that all CL nodes are synced
+func checkAllCLNodesAreSynced(t *testing.T, beaconNodeServiceContexts []*services.ServiceContext) {
+	clClientSyncWaitGroup := sync.WaitGroup{}
+	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
+		clClientSyncWaitGroup.Add(1)
+		go func(beaconNodeServiceCtx *services.ServiceContext) {
+			for {
+				publicPorts := beaconNodeServiceCtx.GetPublicPorts()
+				beaconHttpPort, found := publicPorts[beaconServiceHttpPortId]
+				require.True(t, found)
+				isSyncing := isCLSyncing(t, beaconHttpPort.GetNumber())
+				if !isSyncing {
+					logrus.Infof(fullySyncedMessage, beaconNodeServiceCtx.GetServiceName())
+					break
+				} else {
+					logrus.Infof(stillSyncingMessage, beaconNodeServiceCtx.GetServiceName())
+					logrus.Infof(sleepIntervalMessage, beaconNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
+				}
+				time.Sleep(syncRetryInterval)
+			}
+			clClientSyncWaitGroup.Done()
+		}(beaconNodeServiceCtx)
+	}
+	didWaitTimeout := didWaitGroupTimeout(&clClientSyncWaitGroup, timeoutForSync)
+	require.False(t, didWaitTimeout, "CL nodes weren't fully synced in the expected amount of time '%v'", timeoutForSync.Seconds())
+}
+
+// checkAllElNodesAreSynced run through every EL node and asserts that its synced or timesout
+func checkAllElNodesAreSynced(t *testing.T, elNodeServiceContexts []*services.ServiceContext) {
+	elClientSyncWaitGroup := sync.WaitGroup{}
+	for _, elNodeServiceCtx := range elNodeServiceContexts {
+		elClientSyncWaitGroup.Add(1)
+		go func(elNodeServiceCtx *services.ServiceContext) {
+			for {
+				publicPorts := elNodeServiceCtx.GetPublicPorts()
+				rpcPort, found := publicPorts[elServiceRpcPortId]
+				require.True(t, found)
+				isSyncing := isELSyncing(t, rpcPort.GetNumber())
+				if !isSyncing {
+					logrus.Infof(fullySyncedMessage, elNodeServiceCtx.GetServiceName())
+					break
+				} else {
+					logrus.Infof(stillSyncingMessage, elNodeServiceCtx.GetServiceName())
+					logrus.Infof(sleepIntervalMessage, elNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
+				}
+				time.Sleep(syncRetryInterval)
+			}
+			elClientSyncWaitGroup.Done()
+		}(elNodeServiceCtx)
+	}
+	didWaitTimeout := didWaitGroupTimeout(&elClientSyncWaitGroup, timeoutForSync)
+	require.False(t, didWaitTimeout, "EL nodes weren't fully synced in the expected amount of time '%v'", timeoutForSync.Seconds())
+
+}
+
+func getFinalizedEpoch(t *testing.T, beaconHttpPort uint16) int {
 	url := fmt.Sprintf("%v:%d/%s", httpLocalhost, beaconHttpPort, finalizationEndpoint)
 	resp, err := http.Get(url)
 	require.Empty(t, err, "an unexpected error happened while making http request")
@@ -237,7 +259,7 @@ func getFinalization(t *testing.T, beaconHttpPort uint16) int {
 	return finalizedEpoch
 }
 
-func getCLSyncing(t *testing.T, beaconHttpPort uint16) bool {
+func isCLSyncing(t *testing.T, beaconHttpPort uint16) bool {
 	url := fmt.Sprintf("%v:%d/%s", httpLocalhost, beaconHttpPort, clSyncingEndpoint)
 	resp, err := http.Get(url)
 	require.Empty(t, err, "an unexpected error happened while making http request")
@@ -250,7 +272,7 @@ func getCLSyncing(t *testing.T, beaconHttpPort uint16) bool {
 	return isSyncing
 }
 
-func getELSyncing(t *testing.T, elRpcPort uint16) bool {
+func isELSyncing(t *testing.T, elRpcPort uint16) bool {
 	url := fmt.Sprintf("%v:%d/", httpLocalhost, elRpcPort)
 	syncingPost := strings.NewReader(`{"method":"eth_syncing","params":[],"id":1,"jsonrpc":"2.0"}`)
 	resp, err := http.Post(url, "application/json", syncingPost)
@@ -264,7 +286,7 @@ func getELSyncing(t *testing.T, elRpcPort uint16) bool {
 	return isSyncing
 }
 
-func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+func didWaitGroupTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	timeoutChannel := make(chan struct{})
 	go func() {
 		defer close(timeoutChannel)
@@ -272,8 +294,8 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	}()
 	select {
 	case <-timeoutChannel:
-		return false // completed normally
+		return false
 	case <-time.After(timeout):
-		return true // timed out
+		return true
 	}
 }
