@@ -45,7 +45,9 @@ const (
 	timeoutForFinalization = secondsPerSlot*slotsPerEpoch*finalizationEpoch*time.Second + bufferForFinalization*time.Second
 	timeoutForSync         = 30 * time.Second
 	syncRetryInterval      = 2 * time.Second
-	retryMessage           = "Pausing querying service '%s' for '%v' seconds"
+	sleepIntervalMessage   = "Pausing querying service '%s' for '%v' seconds"
+	fullySyncedMessage     = "Node '%s' is fully synced"
+	stillSyncingMessage    = "Node '%s' is still syncing"
 
 	mevRelayWebsiteServiceName = "mev-relay-website"
 	postgresSqlServiceName     = "postgres"
@@ -176,7 +178,7 @@ func checkFinalizationHasHappened(t *testing.T, beaconNodeServiceContexts []*ser
 				if epochsFinalized > 0 {
 					break
 				} else {
-					logrus.Infof(retryMessage, beaconNodeServiceCtx.GetServiceName(), finalizationRetryInterval.Seconds())
+					logrus.Infof(sleepIntervalMessage, beaconNodeServiceCtx.GetServiceName(), finalizationRetryInterval.Seconds())
 				}
 				time.Sleep(finalizationRetryInterval)
 			}
@@ -199,10 +201,11 @@ func checkAllCLNodesAreSynced(t *testing.T, beaconNodeServiceContexts []*service
 				require.True(t, found)
 				isSyncing := isCLSyncing(t, beaconHttpPort.GetNumber())
 				if !isSyncing {
-					logrus.Infof("Node '%s' is fully synced", beaconNodeServiceCtx.GetServiceName())
+					logrus.Infof(fullySyncedMessage, beaconNodeServiceCtx.GetServiceName())
 					break
 				} else {
-					logrus.Infof(retryMessage, beaconNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
+					logrus.Infof(stillSyncingMessage, beaconNodeServiceCtx.GetServiceName())
+					logrus.Infof(sleepIntervalMessage, beaconNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
 				}
 				time.Sleep(syncRetryInterval)
 			}
@@ -225,10 +228,11 @@ func checkAllElNodesAreSynced(t *testing.T, elNodeServiceContexts []*services.Se
 				require.True(t, found)
 				isSyncing := isELSyncing(t, rpcPort.GetNumber())
 				if !isSyncing {
-					logrus.Infof("Node '%s' is fully synced", elNodeServiceCtx.GetServiceName())
+					logrus.Infof(fullySyncedMessage, elNodeServiceCtx.GetServiceName())
 					break
 				} else {
-					logrus.Infof(retryMessage, elNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
+					logrus.Infof(stillSyncingMessage, elNodeServiceCtx.GetServiceName())
+					logrus.Infof(sleepIntervalMessage, elNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
 				}
 				time.Sleep(syncRetryInterval)
 			}
