@@ -138,19 +138,9 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	// as finalization happens around  the 160th slot, some payloads should have been already delivered
 	logrus.Infof("Check out the MEV relay website at '%s'; payloads should get delivered around 128 slots", mevRelayWebsiteUrl)
 	logrus.Info("Checking registered validators & payloads delivered on MEV")
-	postgresService, err := enclaveCtx.GetServiceContext(postgresSqlServiceName)
+	mevPostgresServiceCtx, err := enclaveCtx.GetServiceContext(postgresSqlServiceName)
 	require.Nil(t, err)
-	postgresPort, found := postgresService.GetPublicPorts()[postgresSqlPortId]
-	require.True(t, found)
-	dsn := fmt.Sprintf(postgresDsn, postgresPort.GetNumber())
-	dbService, err := database.NewDatabaseService(dsn)
-	require.Nil(t, err)
-	numRegisteredValidators, err := dbService.NumRegisteredValidators()
-	require.Nil(t, err)
-	require.Equal(t, expectedRegisteredValidators, numRegisteredValidators, "unexpected number of registered validators")
-	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
-	require.Nil(t, err)
-	require.GreaterOrEqual(t, numDeliveredPayloads, minimumExpectedDeliveredPayloads, "expected at least one payload to be delivered")
+	verifyPayloadsHaveBeenDelivered(t, mevPostgresServiceCtx)
 	cleanupEnclavesAsTestsEndedSuccessfully = true
 }
 
@@ -178,6 +168,20 @@ func checkFinalizationHasHappened(t *testing.T, beaconNodeServiceContexts []*ser
 	}
 	didWaitTimeout := didWaitGroupTimeout(&wg, timeoutForFinalization)
 	require.False(t, didWaitTimeout, "Finalization didn't happen within expected duration of '%v' seconds", timeoutForFinalization.Seconds())
+}
+
+func verifyPayloadsHaveBeenDelivered(t *testing.T, mevPostgresServiceCtx *services.ServiceContext) {
+	postgresPort, found := mevPostgresServiceCtx.GetPublicPorts()[postgresSqlPortId]
+	require.True(t, found)
+	dsn := fmt.Sprintf(postgresDsn, postgresPort.GetNumber())
+	dbService, err := database.NewDatabaseService(dsn)
+	require.Nil(t, err)
+	numRegisteredValidators, err := dbService.NumRegisteredValidators()
+	require.Nil(t, err)
+	require.Equal(t, expectedRegisteredValidators, numRegisteredValidators, "unexpected number of registered validators")
+	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
+	require.Nil(t, err)
+	require.GreaterOrEqual(t, numDeliveredPayloads, minimumExpectedDeliveredPayloads, "expected at least one payload to be delivered")
 }
 
 // checkAllCLNodesAreSynced assert that all CL nodes are synced
