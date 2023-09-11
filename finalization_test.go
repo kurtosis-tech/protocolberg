@@ -41,7 +41,8 @@ const (
 	timeoutForSync         = 30 * time.Second
 	syncInterval           = 2 * time.Second
 
-	postgresDsn = "postgres://postgres:postgres@0.0.0.0:%d/postgres?sslmode=disable"
+	postgresDsn   = "postgres://postgres:postgres@0.0.0.0:%d/postgres?sslmode=disable"
+	httpLocalhost = "http://0.0.0.0"
 )
 
 var noExperimentalFeatureFlags = []kurtosis_core_rpc_api_bindings.KurtosisFeatureFlag{}
@@ -85,7 +86,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	require.NoError(t, err)
 	mevRelayWebsiteHttpPort, found := mevRelayWebsiteCtx.GetPublicPorts()[websiteApiId]
 	require.True(t, found)
-	mevRelayWebsiteUrl := fmt.Sprintf("http://0.0.0.0:%d", mevRelayWebsiteHttpPort.GetNumber())
+	mevRelayWebsiteUrl := fmt.Sprintf("%v:%d", httpLocalhost, mevRelayWebsiteHttpPort.GetNumber())
 	logrus.Infof("Check out the MEV relay website at '%s'", mevRelayWebsiteUrl)
 
 	var beaconNodes []*services.ServiceContext
@@ -204,7 +205,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 // extract this as a function that returns finalized epoch
 func getFinalization(t *testing.T, beaconHttpPort uint16) int {
 	finalizationEndpoint := "eth/v1/beacon/states/head/finality_checkpoints"
-	url := fmt.Sprintf("http://0.0.0.0:%d/%s", beaconHttpPort, finalizationEndpoint)
+	url := fmt.Sprintf("%v:%d/%s", httpLocalhost, beaconHttpPort, finalizationEndpoint)
 	resp, err := http.Get(url)
 	require.Empty(t, err, "an unexpected error happened while making http request")
 	require.NotNil(t, resp.Body)
@@ -220,7 +221,7 @@ func getFinalization(t *testing.T, beaconHttpPort uint16) int {
 
 func getCLSyncing(t *testing.T, beaconHttpPort uint16) bool {
 	syncingEndpoint := "eth/v1/node/syncing"
-	url := fmt.Sprintf("http://0.0.0.0:%d/%s", beaconHttpPort, syncingEndpoint)
+	url := fmt.Sprintf("%v:%d/%s", httpLocalhost, beaconHttpPort, syncingEndpoint)
 	resp, err := http.Get(url)
 	require.Empty(t, err, "an unexpected error happened while making http request")
 	require.NotNil(t, resp.Body)
@@ -233,7 +234,7 @@ func getCLSyncing(t *testing.T, beaconHttpPort uint16) bool {
 }
 
 func getELSyncing(t *testing.T, elRpcPort uint16) bool {
-	url := fmt.Sprintf("http://0.0.0.0:%d/", elRpcPort)
+	url := fmt.Sprintf("%v:%d/", httpLocalhost, elRpcPort)
 	syncingPost := strings.NewReader(`{"method":"eth_syncing","params":[],"id":1,"jsonrpc":"2.0"}`)
 	resp, err := http.Post(url, "application/json", syncingPost)
 	require.Empty(t, err, "an unexpected error happened while making http post to EL")
