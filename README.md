@@ -11,7 +11,7 @@ Built using the [eth2-package](https://github.com/kurtosis-tech/eth2-package) an
 1. Have [Kurtosis version 0.82.21 installed](https://docs.kurtosis.com/install-historical/)
 2. Have Docker Installed
 3. Have a running Kurtosis engine `kurtosis engine restart`
-4. `go test -v ./` or press play on your favorite IDE
+4. `go test -v -timeout=20m ./` or press play on your favorite IDE
 
 # Further Kurtosis
 
