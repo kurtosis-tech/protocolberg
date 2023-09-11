@@ -129,6 +129,32 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 		}
 	}
 
+	checkFinalizationHasHappened(t, beaconNodeServiceContexts)
+	checkAllCLNodesAreSynced(t, beaconNodeServiceContexts)
+	checkAllElNodesAreSynced(t, elNodeServiceContexts)
+
+	logrus.Info("Finalization has happened and all nodes are fully synced")
+
+	// as finalization happens around  the 160th slot, some payloads should have been already delivered
+	logrus.Infof("Check out the MEV relay website at '%s'; payloads should get delivered around 128 slots", mevRelayWebsiteUrl)
+	logrus.Info("Checking registered validators & payloads delivered on MEV")
+	postgresService, err := enclaveCtx.GetServiceContext(postgresSqlServiceName)
+	require.Nil(t, err)
+	postgresPort, found := postgresService.GetPublicPorts()[postgresSqlPortId]
+	require.True(t, found)
+	dsn := fmt.Sprintf(postgresDsn, postgresPort.GetNumber())
+	dbService, err := database.NewDatabaseService(dsn)
+	require.Nil(t, err)
+	numRegisteredValidators, err := dbService.NumRegisteredValidators()
+	require.Nil(t, err)
+	require.Equal(t, expectedRegisteredValidators, numRegisteredValidators, "unexpected number of registered validators")
+	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
+	require.Nil(t, err)
+	require.GreaterOrEqual(t, numDeliveredPayloads, minimumExpectedDeliveredPayloads, "expected at least one payload to be delivered")
+	cleanupEnclavesAsTestsEndedSuccessfully = true
+}
+
+func checkFinalizationHasHappened(t *testing.T, beaconNodeServiceContexts []*services.ServiceContext) {
 	// assert that finalization happens on all CL nodes
 	wg := sync.WaitGroup{}
 	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
@@ -152,8 +178,10 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	}
 	didWaitTimeout := didWaitGroupTimeout(&wg, timeoutForFinalization)
 	require.False(t, didWaitTimeout, "Finalization didn't happen within expected duration of '%v' seconds", timeoutForFinalization.Seconds())
+}
 
-	// assert that all CL nodes are synced
+// checkAllCLNodesAreSynced assert that all CL nodes are synced
+func checkAllCLNodesAreSynced(t *testing.T, beaconNodeServiceContexts []*services.ServiceContext) {
 	clClientSyncWaitGroup := sync.WaitGroup{}
 	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
 		clClientSyncWaitGroup.Add(1)
@@ -174,10 +202,12 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 			clClientSyncWaitGroup.Done()
 		}(beaconNodeServiceCtx)
 	}
-	didWaitTimeout = didWaitGroupTimeout(&clClientSyncWaitGroup, timeoutForSync)
+	didWaitTimeout := didWaitGroupTimeout(&clClientSyncWaitGroup, timeoutForSync)
 	require.False(t, didWaitTimeout, "CL nodes weren't fully synced in the expected amount of time '%v'", timeoutForSync.Seconds())
+}
 
-	// assert that all EL nodes are synced
+// checkAllElNodesAreSynced run through every EL node and asserts that its synced or timesout
+func checkAllElNodesAreSynced(t *testing.T, elNodeServiceContexts []*services.ServiceContext) {
 	elClientSyncWaitGroup := sync.WaitGroup{}
 	for _, elNodeServiceCtx := range elNodeServiceContexts {
 		elClientSyncWaitGroup.Add(1)
@@ -198,28 +228,9 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 			elClientSyncWaitGroup.Done()
 		}(elNodeServiceCtx)
 	}
-	didWaitTimeout = didWaitGroupTimeout(&elClientSyncWaitGroup, timeoutForSync)
+	didWaitTimeout := didWaitGroupTimeout(&elClientSyncWaitGroup, timeoutForSync)
 	require.False(t, didWaitTimeout, "EL nodes weren't fully synced in the expected amount of time '%v'", timeoutForSync.Seconds())
 
-	logrus.Info("Finalization has happened and all nodes are fully synced")
-
-	// as finalization happens around  the 160th slot, some payloads should have been already delivered
-	logrus.Infof("Check out the MEV relay website at '%s'; payloads should get delivered around 128 slots", mevRelayWebsiteUrl)
-	logrus.Info("Checking registered validators & payloads delivered on MEV")
-	postgresService, err := enclaveCtx.GetServiceContext(postgresSqlServiceName)
-	require.Nil(t, err)
-	postgresPort, found := postgresService.GetPublicPorts()[postgresSqlPortId]
-	require.True(t, found)
-	dsn := fmt.Sprintf(postgresDsn, postgresPort.GetNumber())
-	dbService, err := database.NewDatabaseService(dsn)
-	require.Nil(t, err)
-	numRegisteredValidators, err := dbService.NumRegisteredValidators()
-	require.Nil(t, err)
-	require.Equal(t, expectedRegisteredValidators, numRegisteredValidators, "unexpected number of registered validators")
-	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
-	require.Nil(t, err)
-	require.GreaterOrEqual(t, numDeliveredPayloads, minimumExpectedDeliveredPayloads, "expected at least one payload to be delivered")
-	cleanupEnclavesAsTestsEndedSuccessfully = true
 }
 
 func getFinalizedEpoch(t *testing.T, beaconHttpPort uint16) int {
