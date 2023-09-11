@@ -36,12 +36,33 @@ const (
 	elServiceRpcPortId        = "rpc"
 	websiteApiId              = "api"
 	finalizationRetryInterval = time.Second * 10
-	// 3 seconds per slot, 32(buffer 34) slots per epoch, 5th epoch, some buffer
-	timeoutForFinalization = 3 * 34 * 5 * time.Second
-	timeoutForSync         = 30 * time.Second
-	syncInterval           = 2 * time.Second
 
-	postgresDsn = "postgres://postgres:postgres@0.0.0.0:%d/postgres?sslmode=disable"
+	secondsPerSlot        = 3
+	slotsPerEpoch         = 32
+	finalizationEpoch     = 5
+	bufferForFinalization = 45
+	// 3 seconds per slot, 32 slots per epoch, 5th epoch, some buffer
+	timeoutForFinalization = secondsPerSlot*slotsPerEpoch*finalizationEpoch*time.Second + bufferForFinalization*time.Second
+	timeoutForSync         = 30 * time.Second
+	syncRetryInterval      = 2 * time.Second
+
+	mevRelayWebsiteServiceName = "mev-relay-website"
+	postgresSqlServiceName     = "postgres"
+	postgresSqlPortId          = "postgresql"
+	postgresDsn                = "postgres://postgres:postgres@0.0.0.0:%d/postgres?sslmode=disable"
+
+	httpLocalhost = "http://0.0.0.0"
+
+	clPrefix        = "cl-"
+	elPrefix        = "el-"
+	forkmonSuffix   = "-forkmon"
+	validatorSuffix = "-validator"
+
+	expectedRegisteredValidators     = uint64(256)
+	minimumExpectedDeliveredPayloads = uint64(1)
+
+	clSyncingEndpoint    = "eth/v1/node/syncing"
+	finalizationEndpoint = "eth/v1/beacon/states/head/finality_checkpoints"
 )
 
 var noExperimentalFeatureFlags = []kurtosis_core_rpc_api_bindings.KurtosisFeatureFlag{}
@@ -81,36 +102,36 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	require.Empty(t, packageRunResult.ValidationErrors)
 	require.Nil(t, packageRunResult.ExecutionError)
 
-	mevRelayWebsiteCtx, err := enclaveCtx.GetServiceContext("mev-relay-website")
+	mevRelayWebsiteCtx, err := enclaveCtx.GetServiceContext(mevRelayWebsiteServiceName)
 	require.NoError(t, err)
 	mevRelayWebsiteHttpPort, found := mevRelayWebsiteCtx.GetPublicPorts()[websiteApiId]
 	require.True(t, found)
-	mevRelayWebsiteUrl := fmt.Sprintf("http://0.0.0.0:%d", mevRelayWebsiteHttpPort.GetNumber())
+	mevRelayWebsiteUrl := fmt.Sprintf("%v:%d", httpLocalhost, mevRelayWebsiteHttpPort.GetNumber())
 	logrus.Infof("Check out the MEV relay website at '%s'", mevRelayWebsiteUrl)
 
-	var beaconNodes []*services.ServiceContext
-	var elNodes []*services.ServiceContext
+	var beaconNodeServiceContexts []*services.ServiceContext
+	var elNodeServiceContexts []*services.ServiceContext
 	enclaveServices, err := enclaveCtx.GetServices()
 	require.Nil(t, err)
 	for serviceName := range enclaveServices {
 		serviceNameStr := string(serviceName)
-		if strings.HasPrefix(serviceNameStr, "cl-") && !strings.HasSuffix(serviceNameStr, "-validator") && !strings.HasSuffix(serviceNameStr, "-forkmon") {
+		if strings.HasPrefix(serviceNameStr, clPrefix) && !strings.HasSuffix(serviceNameStr, validatorSuffix) && !strings.HasSuffix(serviceNameStr, forkmonSuffix) {
 			logrus.Infof("Found beacon node with name '%s'", serviceNameStr)
 			beaconService, err := enclaveCtx.GetServiceContext(serviceNameStr)
 			require.NoError(t, err)
-			beaconNodes = append(beaconNodes, beaconService)
+			beaconNodeServiceContexts = append(beaconNodeServiceContexts, beaconService)
 		}
-		if strings.HasPrefix(serviceNameStr, "el-") && !strings.HasSuffix(serviceNameStr, "-forkmon") {
+		if strings.HasPrefix(serviceNameStr, elPrefix) && !strings.HasSuffix(serviceNameStr, forkmonSuffix) {
 			logrus.Infof("Found el node with name '%s'", serviceNameStr)
 			elService, err := enclaveCtx.GetServiceContext(serviceNameStr)
 			require.NoError(t, err)
-			elNodes = append(elNodes, elService)
+			elNodeServiceContexts = append(elNodeServiceContexts, elService)
 		}
 	}
 
 	// assert that finalization happens on all CL nodes
 	wg := sync.WaitGroup{}
-	for _, beaconNodeServiceCtx := range beaconNodes {
+	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
 		wg.Add(1)
 		go func(beaconNodeServiceCtx *services.ServiceContext) {
 			for {
@@ -134,7 +155,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 
 	// assert that all CL nodes are synced
 	clClientSyncWaitGroup := sync.WaitGroup{}
-	for _, beaconNodeServiceCtx := range beaconNodes {
+	for _, beaconNodeServiceCtx := range beaconNodeServiceContexts {
 		clClientSyncWaitGroup.Add(1)
 		go func(beaconNodeServiceCtx *services.ServiceContext) {
 			for {
@@ -146,9 +167,9 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 				if !isSyncing {
 					break
 				} else {
-					logrus.Infof("Pausing querying service '%s' for '%v' seconds", beaconNodeServiceCtx.GetServiceName(), syncInterval.Seconds())
+					logrus.Infof("Pausing querying service '%s' for '%v' seconds", beaconNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
 				}
-				time.Sleep(syncInterval)
+				time.Sleep(syncRetryInterval)
 			}
 			clClientSyncWaitGroup.Done()
 		}(beaconNodeServiceCtx)
@@ -158,7 +179,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 
 	// assert that all EL nodes are synced
 	elClientSyncWaitGroup := sync.WaitGroup{}
-	for _, elNodeServiceCtx := range elNodes {
+	for _, elNodeServiceCtx := range elNodeServiceContexts {
 		elClientSyncWaitGroup.Add(1)
 		go func(elNodeServiceCtx *services.ServiceContext) {
 			for {
@@ -170,9 +191,9 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 				if !isSyncing {
 					break
 				} else {
-					logrus.Infof("Pausing querying service '%s' for '%v' seconds", elNodeServiceCtx.GetServiceName(), syncInterval.Seconds())
+					logrus.Infof("Pausing querying service '%s' for '%v' seconds", elNodeServiceCtx.GetServiceName(), syncRetryInterval.Seconds())
 				}
-				time.Sleep(syncInterval)
+				time.Sleep(syncRetryInterval)
 			}
 			elClientSyncWaitGroup.Done()
 		}(elNodeServiceCtx)
@@ -180,47 +201,44 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	didWaitTimeout = waitTimeout(&elClientSyncWaitGroup, timeoutForSync)
 	require.False(t, didWaitTimeout, "EL nodes weren't fully synced in the expected amount of time '%v'", timeoutForSync.Seconds())
 
-	logrus.Info("Finalization has been reached and all nodes are fully synced")
+	logrus.Info("Finalization has happened and all nodes are fully synced")
 
 	// as finalization happens around  the 160th slot, some payloads should have been already delivered
 	logrus.Infof("Check out the MEV relay website at '%s'; payloads should get delivered around 128 slots", mevRelayWebsiteUrl)
 	logrus.Info("Checking registered validators & payloads delivered on MEV")
-	postgresService, err := enclaveCtx.GetServiceContext("postgres")
+	postgresService, err := enclaveCtx.GetServiceContext(postgresSqlServiceName)
 	require.Nil(t, err)
-	postgresPort, found := postgresService.GetPublicPorts()["postgresql"]
+	postgresPort, found := postgresService.GetPublicPorts()[postgresSqlPortId]
 	require.True(t, found)
 	dsn := fmt.Sprintf(postgresDsn, postgresPort.GetNumber())
 	dbService, err := database.NewDatabaseService(dsn)
 	require.Nil(t, err)
 	numRegisteredValidators, err := dbService.NumRegisteredValidators()
 	require.Nil(t, err)
-	require.Equal(t, uint64(256), numRegisteredValidators)
+	require.Equal(t, expectedRegisteredValidators, numRegisteredValidators, "unexpected number of registered validators")
 	numDeliveredPayloads, err := dbService.GetNumDeliveredPayloads()
 	require.Nil(t, err)
-	require.GreaterOrEqual(t, numDeliveredPayloads, uint64(1))
+	require.GreaterOrEqual(t, numDeliveredPayloads, minimumExpectedDeliveredPayloads, "expected at least one payload to be delivered")
 	cleanupEnclavesAsTestsEndedSuccessfully = true
 }
 
-// extract this as a function that returns finalized epoch
 func getFinalization(t *testing.T, beaconHttpPort uint16) int {
-	finalizationEndpoint := "eth/v1/beacon/states/head/finality_checkpoints"
-	url := fmt.Sprintf("http://0.0.0.0:%d/%s", beaconHttpPort, finalizationEndpoint)
+	url := fmt.Sprintf("%v:%d/%s", httpLocalhost, beaconHttpPort, finalizationEndpoint)
 	resp, err := http.Get(url)
 	require.Empty(t, err, "an unexpected error happened while making http request")
 	require.NotNil(t, resp.Body)
 	defer resp.Body.Close()
-	var finalizedResponse finalization
-	err = json.NewDecoder(resp.Body).Decode(&finalizedResponse)
+	var finalizationResponse finalization
+	err = json.NewDecoder(resp.Body).Decode(&finalizationResponse)
 	require.Nil(t, err, "an unexpected error occurred while decoding json")
-	finalizedEpoch, err := strconv.Atoi(finalizedResponse.Data.Finalized.Epoch)
+	finalizedEpoch, err := strconv.Atoi(finalizationResponse.Data.Finalized.Epoch)
 	require.NoError(t, err, "an error occurred while converting finalized epoch to integer")
 	require.GreaterOrEqual(t, finalizedEpoch, 0)
 	return finalizedEpoch
 }
 
 func getCLSyncing(t *testing.T, beaconHttpPort uint16) bool {
-	syncingEndpoint := "eth/v1/node/syncing"
-	url := fmt.Sprintf("http://0.0.0.0:%d/%s", beaconHttpPort, syncingEndpoint)
+	url := fmt.Sprintf("%v:%d/%s", httpLocalhost, beaconHttpPort, clSyncingEndpoint)
 	resp, err := http.Get(url)
 	require.Empty(t, err, "an unexpected error happened while making http request")
 	require.NotNil(t, resp.Body)
@@ -233,7 +251,7 @@ func getCLSyncing(t *testing.T, beaconHttpPort uint16) bool {
 }
 
 func getELSyncing(t *testing.T, elRpcPort uint16) bool {
-	url := fmt.Sprintf("http://0.0.0.0:%d/", elRpcPort)
+	url := fmt.Sprintf("%v:%d/", httpLocalhost, elRpcPort)
 	syncingPost := strings.NewReader(`{"method":"eth_syncing","params":[],"id":1,"jsonrpc":"2.0"}`)
 	resp, err := http.Post(url, "application/json", syncingPost)
 	require.Empty(t, err, "an unexpected error happened while making http post to EL")
@@ -247,13 +265,13 @@ func getELSyncing(t *testing.T, elRpcPort uint16) bool {
 }
 
 func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
-	c := make(chan struct{})
+	timeoutChannel := make(chan struct{})
 	go func() {
-		defer close(c)
+		defer close(timeoutChannel)
 		wg.Wait()
 	}()
 	select {
-	case <-c:
+	case <-timeoutChannel:
 		return false // completed normally
 	case <-time.After(timeout):
 		return true // timed out
