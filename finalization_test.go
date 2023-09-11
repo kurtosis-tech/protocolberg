@@ -193,7 +193,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	didWaitTimeout = waitTimeout(&elClientSyncWaitGroup, timeoutForSync)
 	require.False(t, didWaitTimeout, "EL nodes weren't fully synced in the expected amount of time '%v'", timeoutForSync.Seconds())
 
-	logrus.Info("Finalization has been reached and all nodes are fully synced")
+	logrus.Info("Finalization has hapened and all nodes are fully synced")
 
 	// as finalization happens around  the 160th slot, some payloads should have been already delivered
 	logrus.Infof("Check out the MEV relay website at '%s'; payloads should get delivered around 128 slots", mevRelayWebsiteUrl)
