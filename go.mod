@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/flashbots/mev-boost-relay v0.27.0
-	github.com/kurtosis-tech/kurtosis/api/golang v0.82.21
+	github.com/kurtosis-tech/kurtosis/api/golang v0.83.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 )
