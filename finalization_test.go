@@ -22,7 +22,7 @@ import (
 
 const (
 	enclaveNamePrefix  = "finalization-test"
-	eth2Package        = "github.com/kurtosis-tech/eth2-package@"
+	eth2Package        = "github.com/kurtosis-tech/eth2-package"
 	inputFile          = "./input_args.json"
 	defaultParallelism = 4
 	isNotDryRun        = false
