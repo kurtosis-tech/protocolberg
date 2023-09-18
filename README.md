@@ -8,7 +8,7 @@ Built using the [eth2-package](https://github.com/kurtosis-tech/eth2-package) an
 
 # Run Instructions
 
-1. Have [Kurtosis version 0.82.24 installed](https://docs.kurtosis.com/install-historical/)
+1. Have [Kurtosis version 0.83.0 installed](https://docs.kurtosis.com/install-historical/)
 2. Have Docker Installed
 3. Have a running Kurtosis engine `kurtosis engine restart`
 4. `go test -v -timeout=20m ./` or press play on your favorite IDE
