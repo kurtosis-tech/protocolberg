@@ -16,8 +16,8 @@ Built using the [eth2-package](https://github.com/kurtosis-tech/eth2-package) an
 # Further Kurtosis
 
 1. You can see everything that is running using `kurtosis enclave inspect <enclve_name>`
-2. You can see logs of services using `kurtosis servcie logs <enclave name> <service name>`
-3. You can see shell into a service using `kurtosis servcie shell <enclave name> <service name>`
+2. You can see logs of services using `kurtosis service logs <enclave name> <service name>`
+3. You can see shell into a service using `kurtosis service shell <enclave name> <service name>`
 
 # MEV Notes
 
