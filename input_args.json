@@ -3,14 +3,6 @@
     {
       "el_client_type": "geth",
       "cl_client_type": "lighthouse"
-    },
-    {
-      "el_client_type": "nethermind",
-      "cl_client_type": "teku"
-    },
-    {
-      "el_client_type": "nethermind",
-      "cl_client_type": "teku"
     }
   ],
   "network_params": {

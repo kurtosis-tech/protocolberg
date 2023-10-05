@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/flashbots/mev-boost-relay v0.27.0
-	github.com/kurtosis-tech/kurtosis/api/golang v0.83.0
+	github.com/kurtosis-tech/kurtosis/api/golang v0.84.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 )
@@ -37,6 +37,7 @@ require (
 	github.com/flashbots/go-boost-utils v1.6.0 // indirect
 	github.com/flashbots/go-utils v0.4.8 // indirect
 	github.com/getsentry/sentry-go v0.18.0 // indirect
+	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-ole/go-ole v1.2.1 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
