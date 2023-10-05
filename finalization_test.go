@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/flashbots/mev-boost-relay/database"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/starlark_run_config"
 	"net/http"
 	"os"
 	"strconv"
@@ -22,7 +23,7 @@ import (
 
 const (
 	enclaveNamePrefix  = "finalization-test"
-	eth2Package        = "github.com/kurtosis-tech/eth2-package"
+	eth2Package        = "github.com/kurtosis-tech/ethereum-package"
 	inputFile          = "./input_args.json"
 	defaultParallelism = 4
 	isNotDryRun        = false
@@ -99,7 +100,7 @@ func TestEth2Package_FinalizationSyncingMEV(t *testing.T) {
 	// execute package
 	logrus.Info("Executing the Starlark Package, this will wait for 1 epoch as MEV is turned on")
 	logrus.Infof("Using Enclave '%v' - use `kurtosis enclave inspect %v` to see whats inside", enclaveName, enclaveName)
-	packageRunResult, err := enclaveCtx.RunStarlarkRemotePackageBlocking(ctx, eth2Package, pathToMainFile, runFunctionName, inputParametersAsJSONString, isNotDryRun, defaultParallelism, noExperimentalFeatureFlags)
+	packageRunResult, err := enclaveCtx.RunStarlarkRemotePackageBlocking(ctx, eth2Package, starlark_run_config.NewRunStarlarkConfig(starlark_run_config.WithSerializedParams(inputParametersAsJSONString)))
 	require.NoError(t, err, "An unexpected error occurred while executing the package")
 	require.Nil(t, packageRunResult.InterpretationError)
 	require.Empty(t, packageRunResult.ValidationErrors)
