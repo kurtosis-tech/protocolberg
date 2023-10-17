@@ -62,7 +62,7 @@ const (
 	forkmonSuffix   = "-forkmon"
 	validatorSuffix = "-validator"
 
-	expectedRegisteredValidators     = uint64(256)
+	expectedRegisteredValidators     = uint64(192)
 	minimumExpectedDeliveredPayloads = uint64(1)
 
 	clSyncingEndpoint    = "eth/v1/node/syncing"
